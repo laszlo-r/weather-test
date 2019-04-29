@@ -1,0 +1,165 @@
+<html>
+<head>
+	<title></title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style type="text/css">
+	@media screen and (max-width: 1023px) {
+		*			{ font-size: 2vh; }
+		#chart		{ width: calc(100% - 12px); height: calc(100% - 100px); }
+	}
+
+	@media screen and (min-width: 1024px) {
+		body		{ width: 1024px; font-size: 1em; }
+		#chart		{ width: calc(100% - 170px); height: calc(100% - 12px); }
+		form		{ float: right; width: 150px; }
+		form b		{ display: block; }
+		button		{ width: 100%; margin: 2px 0px; }
+		input		{ width: 65px; }
+	}
+
+	@media screen {
+		html		{ background: #666; font-family: arial; }
+		body		{ margin: auto; background: #eee; }
+		#chart		{ margin: 5px; border: 1px solid #999; background: white; }
+		form b		{ margin: 10px; }
+		input		{ margin: 2px; padding: 3px; }
+	}
+	</style>
+	<script type="text/javascript">
+
+	var weather = (function() {
+		var source = 'heathrow-weatherstation.json';
+
+		function Weather() {
+			var that = this;
+			this.data = [];
+
+			this.load = function(source, callback) {
+				var xhr = new XMLHttpRequest();
+				xhr.onload = function() { callback(this.responseText); }
+				xhr.open('GET', source, true);
+				xhr.send();
+			};
+
+			this.init = function() {
+				this.load(source, function(text) {
+					that.data = eval('(' + text + ')');
+					that.refresh();
+				});
+
+				// refresh canvas when resizing, update the delay until done resizing
+				this.timeout_id = 0;
+				window.onresize = function() {
+					if (that.timeout_id) clearTimeout(that.timeout_id);
+					that.timeout_id = setTimeout(() => that.refresh(), 200);
+				}
+
+				this.chart = document.getElementById('chart');
+				this.ctx = this.chart.getContext('2d');
+
+				// setup elements
+				this.form = document.getElementsByTagName('form')[0];
+				Array.from(document.getElementsByTagName('button')).forEach(el => { el.onclick = ((e) => { that.refresh(e); }) });
+
+				// show the first field name
+				this.field = document.getElementsByTagName('button')[0].name;
+			};
+
+			// expects a list of 2-element lists
+			this.draw_path = function(points, width, stroke) {
+				if (!points.length) return;
+				let c = this.ctx;
+				c.beginPath();
+				c.lineWidth = width || 1;
+				c.strokeStyle = stroke || '#000';
+				c.moveTo(points[0][0], points[0][1]);
+				points.map(p => c.lineTo(p[0], p[1]))
+				c.stroke();
+			};
+
+			this.dates = function() {
+				let inputs = [this.form.date1.value, this.form.date2.value];
+				return {
+					y1: inputs[0].slice(0, 4),
+					m1: inputs[0].slice(-2),
+					y2: inputs[1].slice(0, 4),
+					m2: inputs[1].slice(-2),
+				};
+			};
+
+			this.refresh = function(event) {
+				this.timeout_id = 0;
+
+				// if the window size changed, the canvas needs adjusting
+				this.chart.width = this.chart.clientWidth;
+				this.chart.height = this.chart.clientHeight;
+
+				if (event) {
+					event.preventDefault();
+					this.field = event.target.name || this.field;
+				}
+
+				let pad = 20,
+					half = -0.5,
+					rect = this.chart.getBoundingClientRect(),
+					maxw = rect.width - pad * 2,
+					maxh = rect.height - pad * 2,
+					dates = this.dates();
+
+				// helpers to find and transform records matching year/month criteria
+				let in_range = x =>
+					(x.year > dates.y1 || (x.year == dates.y1 && x.month >= dates.m1)) &&
+					(x.year < dates.y2 || (x.year == dates.y2 && x.month <= dates.m2));
+
+				let transform = (x, i) => ({year: Number(x.yyyy), month: Number(x.month), value: Number(x[that.field])});
+
+				// since not a huge dataset, acceptable to transform all first then filter
+				let data = this.data.map(transform).filter(in_range);
+
+				// determine min and max values for scaling
+				let values = data.map(x => x.value);
+				let miny = Math.min.apply(null, values),
+					maxy = Math.max.apply(null, values);
+				console.log(`${data.length} points:`, data[0], 'min/max:', miny, maxy)
+
+				// transform and scale data to max width/height (flipping y, add padding)
+				let scaley = y => pad + maxh - ((y - miny) / (maxy - miny) * maxh);
+				let scalex = x => pad + x * maxw / (data.length + 1);
+				let points = data.map((x, i) => [scalex(i), scaley(x.value)]);
+
+				// update canvas
+				this.ctx.clearRect(0, 0, rect.width, rect.height);
+
+				// axes with precise 1-pixel lines
+				// TODO: add labeling/notches on both axes
+				this.draw_path([
+					[pad + half, pad + half],
+					[pad + half, pad + maxh + half],
+					[pad + maxw + half, pad + maxh + half],
+				]);
+
+				this.draw_path(points, 2, '#3333cc');
+			};
+		}
+
+		return new Weather();
+	})();
+
+	</script>
+</head>
+<body onload='weather.init()'>
+	<form onsubmit='return false;'>
+		<label>
+			<b>Year</b>
+			<input type='text' size='5' name='date1' value='2010-03'>
+			<input type='text' size='5' name='date2' value='2012-02'>
+		</label>
+		<button name='tmax_C'>temp max C</button>
+		<button name='tmin_C'>temp min C</button>
+		<button name='rain_mm'>rain mm</button>
+		<button name='sunshine_hours'>sunshine hours</button>
+		<button>Display</button>
+	</form>
+	<canvas id='chart'></canvas>
+</body>
+</html>

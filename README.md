@@ -9,6 +9,12 @@ Running `run.sh` generates a `weather-test` docker image and runs it on 0.0.0.0:
 After that, should be able to curl against the service. Samples have limited data, one example: `curl http://localhost:8000/weather/london/20170216/1200`
 
 
+Frontend stuff
+--------------
+
+The included `index.html` is a separate plain JS exercise for using a canvas plus generic responsiveness. 
+
+
 Questions
 ---------
  - Kelvin?
