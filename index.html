@@ -30,22 +30,14 @@
 	var weather = (function() {
 		var source = 'heathrow-weatherstation.json';
 
+		// TODO: use classes
 		function Weather() {
 			var that = this;
 			this.data = [];
 
-			this.load = function(source, callback) {
-				var xhr = new XMLHttpRequest();
-				xhr.onload = function() { callback(this.responseText); }
-				xhr.open('GET', source, true);
-				xhr.send();
-			};
-
 			this.init = function() {
-				this.load(source, function(text) {
-					that.data = eval('(' + text + ')');
-					that.refresh();
-				});
+				fetch(source).then(res => res.json()).then(res => that.data = res).then(() => that.refresh()).
+					catch(err => console.error(err));
 
 				// refresh canvas when resizing, update the delay until done resizing
 				this.timeout_id = 0;
@@ -54,14 +46,13 @@
 					that.timeout_id = setTimeout(() => that.refresh(), 200);
 				}
 
+				// setup elements
 				this.chart = document.getElementById('chart');
 				this.ctx = this.chart.getContext('2d');
-
-				// setup elements
 				this.form = document.getElementsByTagName('form')[0];
 				Array.from(document.getElementsByTagName('button')).forEach(el => { el.onclick = ((e) => { that.refresh(e); }) });
 
-				// show the first field name
+				// show the first field
 				this.field = document.getElementsByTagName('button')[0].name;
 			};
 
@@ -120,7 +111,7 @@
 				let values = data.map(x => x.value);
 				let miny = Math.min.apply(null, values),
 					maxy = Math.max.apply(null, values);
-				console.log(`${data.length} points:`, data[0], 'min/max:', miny, maxy)
+				console.log(`${data.length} points, min ${miny}, max ${maxy}`, data[0])
 
 				// transform and scale data to max width/height (flipping y, add padding)
 				let scaley = y => pad + maxh - ((y - miny) / (maxy - miny) * maxh);
